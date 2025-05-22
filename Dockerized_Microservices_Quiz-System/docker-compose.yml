@@ -1,0 +1,105 @@
+version: '3.8' # استخدام أحدث إصدار من Docker Compose للحصول على أحدث الميزات
+
+services:
+  # 1. خدمة Eureka Server (service-registry)
+  service-registry:
+    build: ./service-registry/service-registry # مسار Dockerfile الخاص بـ service-registry
+    ports:
+      - "8761:8761" # ربط منفذ 8761 في الحاوية بمنفذ 8761 على الجهاز المضيف
+    environment:
+
+
+      # متغيرات بيئة خاصة بـ Eureka Server عند تشغيلها داخل Docker
+      # Eureka Server لا تقوم بالتسجيل أو جلب السجل من نفسها
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
+      EUREKA_CLIENT_FETCH_REGISTRY: "false"
+      # يمكن استخدام هذا البروفايل لتفعيل إعدادات خاصة بـ Docker في application.properties
+      SPRING_PROFILES_ACTIVE: docker
+
+   # 2. خدمة MySQL لقاعدة بيانات Question Service
+  question-db:
+    image: mysql:8.0 # استخدام صورة MySQL الرسمية الإصدار 8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: new12345 # كلمة مرور قوية للمستخدم root (للوصول الإداري)
+      MYSQL_DATABASE: question_db      # اسم قاعدة البيانات التي سيتم إنشاؤها تلقائيًا
+      MYSQL_USER: Ramy           # اسم المستخدم الذي ستستخدمه خدمة Question-service للاتصال
+      MYSQL_PASSWORD: new12345   # كلمة مرور المستخدم
+    volumes:
+      - question-db-data:/var/lib/mysql
+    ports:
+      - "3308:3306"
+
+    # لضمان بقاء البيانات حتى بعد إيقاف الحاوية
+    # إذا كنت تحتاج للوصول إلى قاعدة البيانات من جهازك المضيف (مثل MySQL Workbench)، قم بإلغاء التعليق عن السطر التالي
+    # ports:
+    #   - "3307:3306" # ربط منفذ 3306 في الحاوية بمنفذ 3307 على الجهاز المضيف (لتجنب تعارضات 3306)
+
+  # 3. خدمة MySQL لقاعدة بيانات Quiz Service
+  quiz-db:
+    image: mysql:8.0 # استخدام صورة MySQL الرسمية الإصدار 8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: new12345
+      MYSQL_DATABASE: quiz_db
+      MYSQL_USER: Ramy
+      MYSQL_PASSWORD: new12345
+    volumes:
+      - quiz-db-data:/var/lib/mysql
+    ports:
+     - "3309:3306"
+       # ربط منفذ 3306 في الحاوية بمنفذ 3308 على الجهاز المضيف
+
+  # 4. خدمة Question-service
+  question-service:
+    build: ./Question-service # مسار Dockerfile الخاص بـ Question-service
+    ports:
+      - "8080:8080" # ربط منفذ 8081 في الحاوية بمنفذ 8081 على الجهاز المضيف
+    depends_on: # هذه الخدمة تعتمد على خدمة Eureka وقاعدة بياناتها
+      - service-registry
+      - question-db
+      - quiz-service
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker # تفعيل البروفايل الخاص بـ Docker
+      # إعدادات الاتصال بـ Eureka Server (باستخدام اسم الخدمة في Docker Compose)
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      # إعدادات الاتصال بقاعدة البيانات (باستخدام اسم خدمة MySQL في Docker Compose)
+      SPRING_DATASOURCE_URL: jdbc:mysql://question-db:3306/question_db
+      #?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: Ramy
+      SPRING_DATASOURCE_PASSWORD: new12345
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update # أو validate, none, create-drop حسب احتياجك للمخطط
+
+# 5. خدمة Quiz-service
+  quiz-service:
+    build: ./Quiz-service # مسار Dockerfile الخاص بـ Quiz-service
+    ports:
+      - "8090:8090" # ربط منفذ 8082 في الحاوية بمنفذ 8082 على الجهاز المضيف
+    depends_on: # هذه الخدمة تعتمد على خدمة Eureka وقاعدة بياناتها
+      - service-registry
+      - quiz-db
+#      - question-service
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_DATASOURCE_URL: jdbc:mysql://quiz-db:3306/quiz_db
+      #?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: Ramy
+      SPRING_DATASOURCE_PASSWORD: new12345
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+
+  # 6. خدمة API-Gateway
+  api-gateway:
+    build: ./API-Gateway/API-Gateway # مسار Dockerfile الخاص بـ API-Gateway
+    ports:
+      - "8100:8100" # ربط منفذ 8080 في الحاوية بمنفذ 8080 على الجهاز المضيف
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+
+# تعريف المجلدات المستمرة للبيانات
+# هذا يضمن عدم فقدان بيانات قواعد البيانات عند إعادة إنشاء الحاويات
+volumes:
+  question-db-data:
+  quiz-db-data:
