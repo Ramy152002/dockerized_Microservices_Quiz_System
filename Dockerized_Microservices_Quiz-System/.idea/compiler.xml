@@ -17,8 +17,9 @@
         <processorPath useClasspath="false">
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.36/lombok-1.18.36.jar" />
         </processorPath>
-        <module name="demo" />
+        <module name="demo (2)" />
         <module name="demo (1)" />
+        <module name="demo" />
       </profile>
     </annotationProcessing>
   </component>
@@ -27,6 +28,7 @@
       <module name="API-Gateway" options="-parameters" />
       <module name="demo" options="-parameters" />
       <module name="demo (1)" options="-parameters" />
+      <module name="demo (2)" options="-parameters" />
       <module name="service-registry" options="-parameters" />
     </option>
   </component>
